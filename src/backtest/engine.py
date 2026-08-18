@@ -34,9 +34,7 @@ class BacktestEngine:
         required_columns = {"high", "low", "close"}
         missing = required_columns.difference(data.columns)
         if missing:
-            raise ValueError(
-                f"Missing required columns: {sorted(missing)}"
-            )
+            raise ValueError(f"Missing required columns: {sorted(missing)}")
 
         balance = initial_balance
         peak_balance = initial_balance
@@ -81,6 +79,7 @@ class BacktestEngine:
                             exit_price=decision.exit_price,
                             position_size=position.position_size,
                             pnl=pnl,
+                            risk_amount=position.risk_amount,
                             reason=decision.reason,
                             candles_held=candles_held,
                         )
@@ -92,14 +91,9 @@ class BacktestEngine:
 
                     peak_balance = max(peak_balance, balance)
                     drawdown_pct = (
-                        (peak_balance - balance)
-                        / peak_balance
-                        * 100.0
+                        (peak_balance - balance) / peak_balance * 100.0
                     )
-                    max_drawdown_pct = max(
-                        max_drawdown_pct,
-                        drawdown_pct,
-                    )
+                    max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
 
                 continue
 
@@ -115,7 +109,6 @@ class BacktestEngine:
                 continue
 
             position_candidate = pipeline_result.position
-
             if not position_candidate.valid:
                 continue
 
@@ -144,6 +137,7 @@ class BacktestEngine:
                     exit_price=last_close,
                     position_size=position.position_size,
                     pnl=pnl,
+                    risk_amount=position.risk_amount,
                     reason=ExitReason.END_OF_DATA,
                     candles_held=candles_held,
                 )
@@ -151,14 +145,9 @@ class BacktestEngine:
 
             peak_balance = max(peak_balance, balance)
             drawdown_pct = (
-                (peak_balance - balance)
-                / peak_balance
-                * 100.0
+                (peak_balance - balance) / peak_balance * 100.0
             )
-            max_drawdown_pct = max(
-                max_drawdown_pct,
-                drawdown_pct,
-            )
+            max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
 
         winning_trades = sum(1 for trade in trades if trade.pnl > 0)
         losing_trades = sum(1 for trade in trades if trade.pnl < 0)
