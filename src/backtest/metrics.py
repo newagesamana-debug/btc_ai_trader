@@ -41,24 +41,22 @@ def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
     largest_win = max(wins, default=0.0)
     largest_loss = min(losses, default=0.0)
 
-    risk_units = []
-    for trade in trades:
-        if trade.direction.value == "long":
-            risk_distance = trade.entry_price - trade.exit_price
-        else:
-            risk_distance = trade.exit_price - trade.entry_price
-
-        if trade.position_size > 0:
-            risk_units.append(trade.pnl / (abs(risk_distance) * trade.position_size))
-
-    average_r = sum(risk_units) / len(risk_units) if risk_units else 0.0
+    r_values = [
+        trade.pnl / trade.risk_amount
+        for trade in trades
+        if trade.risk_amount > 0
+    ]
+    average_r = sum(r_values) / len(r_values) if r_values else 0.0
 
     max_consecutive_losses = 0
     consecutive_losses = 0
     for trade in trades:
         if trade.pnl < 0:
             consecutive_losses += 1
-            max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            max_consecutive_losses = max(
+                max_consecutive_losses,
+                consecutive_losses,
+            )
         else:
             consecutive_losses = 0
 
