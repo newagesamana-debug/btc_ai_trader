@@ -97,6 +97,8 @@ def test_backtest_takes_long_profit():
     assert trade.reason == ExitReason.TAKE_PROFIT
     assert trade.pnl == pytest.approx(300.0)
     assert result.final_balance == pytest.approx(10_300.0)
+    assert result.equity_curve == pytest.approx((10_000.0, 10_300.0))
+    assert result.max_drawdown_pct == pytest.approx(0.0)
 
 
 def test_backtest_takes_long_stop_loss():
@@ -120,6 +122,8 @@ def test_backtest_takes_long_stop_loss():
     assert result.trades[0].reason == ExitReason.STOP_LOSS
     assert result.trades[0].pnl == pytest.approx(-100.0)
     assert result.final_balance == pytest.approx(9_900.0)
+    assert result.equity_curve == pytest.approx((10_000.0, 9_900.0))
+    assert result.max_drawdown_pct == pytest.approx(1.0)
 
 
 def test_backtest_handles_short_stop_loss():
@@ -185,6 +189,9 @@ def test_backtest_closes_open_position_at_end_of_data():
     assert result.trades[0].reason == ExitReason.END_OF_DATA
     assert result.trades[0].exit_price == 101_000
     assert result.trades[0].pnl == pytest.approx(100 / 2200 * 1000)
+    assert len(result.equity_curve) == 2
+    assert result.equity_curve[0] == pytest.approx(10_000.0)
+    assert result.equity_curve[-1] == pytest.approx(result.final_balance)
 
 
 def test_empty_backtest_returns_initial_balance():
@@ -196,3 +203,4 @@ def test_empty_backtest_returns_initial_balance():
     assert result.final_balance == 10_000
     assert result.total_trades == 0
     assert result.return_pct == 0.0
+    assert result.equity_curve == pytest.approx((10_000.0,))
