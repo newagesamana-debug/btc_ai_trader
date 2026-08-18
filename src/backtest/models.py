@@ -20,6 +20,10 @@ class BacktestTrade:
     reason: ExitReason
     candles_held: int
 
+    gross_pnl: float = 0.0
+    fees: float = 0.0
+    slippage_cost: float = 0.0
+
 
 @dataclass(frozen=True)
 class BacktestResult:
