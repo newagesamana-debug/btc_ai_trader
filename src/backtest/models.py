@@ -40,3 +40,7 @@ class BacktestResult:
     win_rate_pct: float
 
     trades: tuple[BacktestTrade, ...]
+
+    # Balance after each completed trade, starting with initial balance.
+    # Keeping this optional preserves compatibility with existing callers.
+    equity_curve: tuple[float, ...] = ()
