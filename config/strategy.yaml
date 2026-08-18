@@ -1,0 +1,56 @@
+strategy:
+  min_rr: 1.5
+
+  min_probability: 0.55
+
+  min_expected_value: 0.0
+
+  setups:
+    trend_pullback: true
+    breakout_retest: true
+    liquidity_sweep: true
+    range_reversion: true
+
+  regime:
+    strong_bull: true
+    bull: true
+    range: true
+    bear: true
+    strong_bear: true
+    high_volatility: false
+    chaotic: false
+    transition: false
+
+  indicators:
+    ema:
+      fast: 20
+      medium: 50
+      slow: 200
+
+    rsi:
+      period: 14
+
+    atr:
+      period: 14
+
+    adx:
+      period: 14
+
+    bollinger:
+      period: 20
+      stddev: 2.0
+
+    volume:
+      sma_period: 20
+
+  exits:
+    use_stop_loss: true
+    use_take_profit: true
+    use_time_stop: true
+    use_signal_exit: true
+
+  sl:
+    atr_multiplier: 1.0
+
+  time_stop:
+    candles: 24

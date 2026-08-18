@@ -1,0 +1,13 @@
+pandas>=2.2,<3
+numpy>=2.0,<3
+scipy>=1.14,<2
+scikit-learn>=1.5,<2
+PyYAML>=6.0,<7
+pydantic>=2.8,<3
+pydantic-settings>=2.4,<3
+ccxt>=4.4,<5
+SQLAlchemy>=2.0,<3
+pytest>=8.3,<9
+loguru>=0.7,<1
+python-dotenv>=1.0,<2
+pyarrow>=17,<20

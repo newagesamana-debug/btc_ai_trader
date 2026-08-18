@@ -1,0 +1,40 @@
+app:
+  name: btc_ai_trader
+  version: "1.0.0"
+  environment: development
+
+market:
+  exchange: binanceusdm
+  symbol: BTC/USDT:USDT
+
+timeframes:
+  primary: 5m
+  setup: 15m
+  trend: 1h
+  regime: 4h
+
+data:
+  storage_path: data
+
+  raw_path: data/raw
+  processed_path: data/processed
+  backtest_path: data/backtests
+  models_path: data/models
+
+  source_timeframe: 1m
+
+  download:
+    batch_size: 1000
+    request_delay_seconds: 0.1
+
+  validation:
+    check_gaps: true
+    check_duplicates: true
+    check_ohlc: true
+
+execution:
+  trading_enabled: false
+  live_trading_enabled: false
+
+logging:
+  level: INFO
