@@ -5,7 +5,7 @@ from src.strategy.exit.engine import ExitEngine
 from src.strategy.exit.models import ExitReason
 from src.strategy.risk.manager import RiskManager
 from src.strategy.risk.models import PositionPlan
-from src.strategy.signal.models import SignalDirection, TradeSignal
+from src.strategy.signal.models import SignalDirection
 
 from src.backtest.models import BacktestResult, BacktestTrade
 
@@ -47,13 +47,11 @@ class BacktestEngine:
         position: PositionPlan | None = None
         entry_index: int | None = None
         candles_held = 0
-        previous_signal: TradeSignal | None = None
         trades: list[BacktestTrade] = []
 
         for index, row in data.reset_index(drop=True).iterrows():
             if position is not None:
                 candles_held += 1
-
                 signal = self.strategy_engine.evaluate(row)
 
                 decision = self.exit_engine.evaluate(
@@ -66,11 +64,7 @@ class BacktestEngine:
                 )
 
                 if decision.should_exit:
-                    pnl = (
-                        decision.pnl_per_unit
-                        * position.position_size
-                    )
-
+                    pnl = decision.pnl_per_unit * position.position_size
                     balance += pnl
 
                     trades.append(
@@ -90,7 +84,6 @@ class BacktestEngine:
                     position = None
                     entry_index = None
                     candles_held = 0
-                    previous_signal = signal
 
                     peak_balance = max(peak_balance, balance)
                     drawdown_pct = (
@@ -103,15 +96,11 @@ class BacktestEngine:
                         drawdown_pct,
                     )
 
-                    continue
-
-                previous_signal = signal
                 continue
 
             signal = self.strategy_engine.evaluate(row)
 
             if not signal.valid:
-                previous_signal = signal
                 continue
 
             position_candidate = self.risk_manager.calculate(
@@ -122,13 +111,11 @@ class BacktestEngine:
             )
 
             if not position_candidate.valid:
-                previous_signal = signal
                 continue
 
             position = position_candidate
             entry_index = index
             candles_held = 0
-            previous_signal = signal
 
         if position is not None and entry_index is not None:
             last_index = len(data) - 1
