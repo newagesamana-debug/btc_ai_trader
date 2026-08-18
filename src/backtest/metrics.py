@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from src.backtest.models import BacktestResult
+from src.strategy.exit.models import ExitReason
 from src.strategy.signal.models import SignalDirection
 
 
@@ -27,6 +28,12 @@ class BacktestMetrics:
     short_trades: int = 0
     long_win_rate_pct: float = 0.0
     short_win_rate_pct: float = 0.0
+    average_candles_held: float = 0.0
+    stop_loss_trades: int = 0
+    take_profit_trades: int = 0
+    time_stop_trades: int = 0
+    signal_exit_trades: int = 0
+    end_of_data_trades: int = 0
 
 
 def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
@@ -114,6 +121,17 @@ def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
         else 0.0
     )
 
+    average_candles_held = (
+        sum(trade.candles_held for trade in trades) / total_trades
+        if total_trades
+        else 0.0
+    )
+
+    exit_counts = {
+        reason: sum(1 for trade in trades if trade.reason == reason)
+        for reason in ExitReason
+    }
+
     return BacktestMetrics(
         profit_factor=profit_factor,
         average_win=average_win,
@@ -133,4 +151,10 @@ def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
         short_trades=len(short_trades),
         long_win_rate_pct=long_win_rate_pct,
         short_win_rate_pct=short_win_rate_pct,
+        average_candles_held=average_candles_held,
+        stop_loss_trades=exit_counts[ExitReason.STOP_LOSS],
+        take_profit_trades=exit_counts[ExitReason.TAKE_PROFIT],
+        time_stop_trades=exit_counts[ExitReason.TIME_STOP],
+        signal_exit_trades=exit_counts[ExitReason.SIGNAL_EXIT],
+        end_of_data_trades=exit_counts[ExitReason.END_OF_DATA],
     )
