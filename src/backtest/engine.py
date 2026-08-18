@@ -3,7 +3,6 @@ import pandas as pd
 from src.strategy.engine import StrategyEngine
 from src.strategy.exit.engine import ExitEngine
 from src.strategy.exit.models import ExitReason
-from src.strategy.risk.manager import RiskManager
 from src.strategy.risk.models import PositionPlan
 from src.strategy.signal.models import SignalDirection
 
@@ -13,7 +12,6 @@ from src.backtest.models import BacktestResult, BacktestTrade
 class BacktestEngine:
     def __init__(self):
         self.strategy_engine = StrategyEngine()
-        self.risk_manager = RiskManager()
         self.exit_engine = ExitEngine()
 
     def run(
@@ -52,7 +50,14 @@ class BacktestEngine:
         for index, row in data.reset_index(drop=True).iterrows():
             if position is not None:
                 candles_held += 1
-                signal = self.strategy_engine.evaluate(row)
+
+                pipeline_result = self.strategy_engine.evaluate(
+                    row=row,
+                    account_balance=balance,
+                    risk_percent=risk_percent,
+                    leverage=leverage,
+                )
+                signal = pipeline_result.signal
 
                 decision = self.exit_engine.evaluate(
                     position=position,
@@ -98,17 +103,18 @@ class BacktestEngine:
 
                 continue
 
-            signal = self.strategy_engine.evaluate(row)
-
-            if not signal.valid:
-                continue
-
-            position_candidate = self.risk_manager.calculate(
-                signal=signal,
+            pipeline_result = self.strategy_engine.evaluate(
+                row=row,
                 account_balance=balance,
                 risk_percent=risk_percent,
                 leverage=leverage,
             )
+
+            signal = pipeline_result.signal
+            if not signal.valid:
+                continue
+
+            position_candidate = pipeline_result.position
 
             if not position_candidate.valid:
                 continue
