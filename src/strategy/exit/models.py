@@ -7,6 +7,7 @@ class ExitReason(str, Enum):
     TAKE_PROFIT = "take_profit"
     TIME_STOP = "time_stop"
     SIGNAL_EXIT = "signal_exit"
+    END_OF_DATA = "end_of_data"
     NONE = "none"
 
 
