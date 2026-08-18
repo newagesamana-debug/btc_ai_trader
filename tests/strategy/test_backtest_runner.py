@@ -24,7 +24,7 @@ def test_runner_validates_ohlc(tmp_path):
 
     assert result.initial_balance == 10_000
     assert result.final_balance >= 0
-    assert metrics.total_trades == result.total_trades
+    assert metrics.long_trades + metrics.short_trades == result.total_trades
 
 
 def test_runner_rejects_missing_ohlc(tmp_path):
