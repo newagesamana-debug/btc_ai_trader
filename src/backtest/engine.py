@@ -1,0 +1,206 @@
+import pandas as pd
+
+from src.strategy.engine import StrategyEngine
+from src.strategy.exit.engine import ExitEngine
+from src.strategy.exit.models import ExitReason
+from src.strategy.risk.manager import RiskManager
+from src.strategy.risk.models import PositionPlan
+from src.strategy.signal.models import SignalDirection, TradeSignal
+
+from src.backtest.models import BacktestResult, BacktestTrade
+
+
+class BacktestEngine:
+    def __init__(self):
+        self.strategy_engine = StrategyEngine()
+        self.risk_manager = RiskManager()
+        self.exit_engine = ExitEngine()
+
+    def run(
+        self,
+        data: pd.DataFrame,
+        initial_balance: float,
+        risk_percent: float = 1.0,
+        leverage: float = 1.0,
+        max_candles: int = 24,
+    ) -> BacktestResult:
+        if initial_balance <= 0:
+            raise ValueError("initial_balance must be positive")
+
+        if max_candles <= 0:
+            raise ValueError("max_candles must be positive")
+
+        if data.empty:
+            return self._empty_result(initial_balance)
+
+        required_columns = {"high", "low", "close"}
+        missing = required_columns.difference(data.columns)
+        if missing:
+            raise ValueError(
+                f"Missing required columns: {sorted(missing)}"
+            )
+
+        balance = initial_balance
+        peak_balance = initial_balance
+        max_drawdown_pct = 0.0
+
+        position: PositionPlan | None = None
+        entry_index: int | None = None
+        candles_held = 0
+        previous_signal: TradeSignal | None = None
+        trades: list[BacktestTrade] = []
+
+        for index, row in data.reset_index(drop=True).iterrows():
+            if position is not None:
+                candles_held += 1
+
+                signal = self.strategy_engine.evaluate(row)
+
+                decision = self.exit_engine.evaluate(
+                    position=position,
+                    candle_high=float(row["high"]),
+                    candle_low=float(row["low"]),
+                    candles_held=candles_held,
+                    max_candles=max_candles,
+                    signal=signal,
+                )
+
+                if decision.should_exit:
+                    pnl = (
+                        decision.pnl_per_unit
+                        * position.position_size
+                    )
+
+                    balance += pnl
+
+                    trades.append(
+                        BacktestTrade(
+                            entry_index=entry_index,
+                            exit_index=index,
+                            direction=position.direction,
+                            entry_price=position.entry,
+                            exit_price=decision.exit_price,
+                            position_size=position.position_size,
+                            pnl=pnl,
+                            reason=decision.reason,
+                            candles_held=candles_held,
+                        )
+                    )
+
+                    position = None
+                    entry_index = None
+                    candles_held = 0
+                    previous_signal = signal
+
+                    peak_balance = max(peak_balance, balance)
+                    drawdown_pct = (
+                        (peak_balance - balance)
+                        / peak_balance
+                        * 100.0
+                    )
+                    max_drawdown_pct = max(
+                        max_drawdown_pct,
+                        drawdown_pct,
+                    )
+
+                    continue
+
+                previous_signal = signal
+                continue
+
+            signal = self.strategy_engine.evaluate(row)
+
+            if not signal.valid:
+                previous_signal = signal
+                continue
+
+            position_candidate = self.risk_manager.calculate(
+                signal=signal,
+                account_balance=balance,
+                risk_percent=risk_percent,
+                leverage=leverage,
+            )
+
+            if not position_candidate.valid:
+                previous_signal = signal
+                continue
+
+            position = position_candidate
+            entry_index = index
+            candles_held = 0
+            previous_signal = signal
+
+        if position is not None and entry_index is not None:
+            last_index = len(data) - 1
+            last_close = float(data.iloc[-1]["close"])
+
+            if position.direction == SignalDirection.LONG:
+                pnl_per_unit = last_close - position.entry
+            else:
+                pnl_per_unit = position.entry - last_close
+
+            pnl = pnl_per_unit * position.position_size
+            balance += pnl
+
+            trades.append(
+                BacktestTrade(
+                    entry_index=entry_index,
+                    exit_index=last_index,
+                    direction=position.direction,
+                    entry_price=position.entry,
+                    exit_price=last_close,
+                    position_size=position.position_size,
+                    pnl=pnl,
+                    reason=ExitReason.END_OF_DATA,
+                    candles_held=candles_held,
+                )
+            )
+
+            peak_balance = max(peak_balance, balance)
+            drawdown_pct = (
+                (peak_balance - balance)
+                / peak_balance
+                * 100.0
+            )
+            max_drawdown_pct = max(
+                max_drawdown_pct,
+                drawdown_pct,
+            )
+
+        winning_trades = sum(1 for trade in trades if trade.pnl > 0)
+        losing_trades = sum(1 for trade in trades if trade.pnl < 0)
+        total_trades = len(trades)
+
+        win_rate_pct = (
+            winning_trades / total_trades * 100.0
+            if total_trades
+            else 0.0
+        )
+
+        return BacktestResult(
+            initial_balance=initial_balance,
+            final_balance=balance,
+            total_pnl=balance - initial_balance,
+            return_pct=(balance - initial_balance) / initial_balance * 100.0,
+            max_drawdown_pct=max_drawdown_pct,
+            total_trades=total_trades,
+            winning_trades=winning_trades,
+            losing_trades=losing_trades,
+            win_rate_pct=win_rate_pct,
+            trades=tuple(trades),
+        )
+
+    @staticmethod
+    def _empty_result(initial_balance: float) -> BacktestResult:
+        return BacktestResult(
+            initial_balance=initial_balance,
+            final_balance=initial_balance,
+            total_pnl=0.0,
+            return_pct=0.0,
+            max_drawdown_pct=0.0,
+            total_trades=0,
+            winning_trades=0,
+            losing_trades=0,
+            win_rate_pct=0.0,
+            trades=(),
+        )
