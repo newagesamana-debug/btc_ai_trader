@@ -30,7 +30,8 @@ def test_risk_adjusted_metrics():
     metrics = calculate_metrics(result)
 
     assert metrics.median_r == pytest.approx(0.5)
-    assert metrics.r_stddev == pytest.approx(1.892969448, rel=1e-6)
+    # Sample standard deviation of R values [3, -1, -1, 2].
+    assert metrics.r_stddev == pytest.approx(2.061552813, rel=1e-6)
     assert metrics.recovery_factor == pytest.approx(3.0)
     assert metrics.calmar_ratio == pytest.approx(3.0)
     assert metrics.sharpe_ratio == pytest.approx(0.741005418, rel=1e-6)
