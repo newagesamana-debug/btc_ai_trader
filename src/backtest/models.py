@@ -16,6 +16,7 @@ class BacktestTrade:
     position_size: float
 
     pnl: float
+    risk_amount: float
     reason: ExitReason
     candles_held: int
 
