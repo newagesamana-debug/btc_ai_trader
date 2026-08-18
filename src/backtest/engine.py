@@ -10,9 +10,20 @@ from src.backtest.models import BacktestResult, BacktestTrade
 
 
 class BacktestEngine:
-    def __init__(self):
+    def __init__(
+        self,
+        fee_rate: float = 0.0,
+        slippage_bps: float = 0.0,
+    ):
+        if fee_rate < 0:
+            raise ValueError("fee_rate must be non-negative")
+        if slippage_bps < 0:
+            raise ValueError("slippage_bps must be non-negative")
+
         self.strategy_engine = StrategyEngine()
         self.exit_engine = ExitEngine()
+        self.fee_rate = fee_rate
+        self.slippage_bps = slippage_bps
 
     def run(
         self,
@@ -67,23 +78,16 @@ class BacktestEngine:
                 )
 
                 if decision.should_exit:
-                    pnl = decision.pnl_per_unit * position.position_size
-                    balance += pnl
-
-                    trades.append(
-                        BacktestTrade(
-                            entry_index=entry_index,
-                            exit_index=index,
-                            direction=position.direction,
-                            entry_price=position.entry,
-                            exit_price=decision.exit_price,
-                            position_size=position.position_size,
-                            pnl=pnl,
-                            risk_amount=position.risk_amount,
-                            reason=decision.reason,
-                            candles_held=candles_held,
-                        )
+                    trade = self._build_trade(
+                        position=position,
+                        entry_index=entry_index,
+                        exit_index=index,
+                        exit_price=decision.exit_price,
+                        reason=decision.reason,
+                        candles_held=candles_held,
                     )
+                    balance += trade.pnl
+                    trades.append(trade)
 
                     position = None
                     entry_index = None
@@ -120,28 +124,16 @@ class BacktestEngine:
             last_index = len(data) - 1
             last_close = float(data.iloc[-1]["close"])
 
-            if position.direction == SignalDirection.LONG:
-                pnl_per_unit = last_close - position.entry
-            else:
-                pnl_per_unit = position.entry - last_close
-
-            pnl = pnl_per_unit * position.position_size
-            balance += pnl
-
-            trades.append(
-                BacktestTrade(
-                    entry_index=entry_index,
-                    exit_index=last_index,
-                    direction=position.direction,
-                    entry_price=position.entry,
-                    exit_price=last_close,
-                    position_size=position.position_size,
-                    pnl=pnl,
-                    risk_amount=position.risk_amount,
-                    reason=ExitReason.END_OF_DATA,
-                    candles_held=candles_held,
-                )
+            trade = self._build_trade(
+                position=position,
+                entry_index=entry_index,
+                exit_index=last_index,
+                exit_price=last_close,
+                reason=ExitReason.END_OF_DATA,
+                candles_held=candles_held,
             )
+            balance += trade.pnl
+            trades.append(trade)
 
             peak_balance = max(peak_balance, balance)
             drawdown_pct = (
@@ -171,6 +163,63 @@ class BacktestEngine:
             win_rate_pct=win_rate_pct,
             trades=tuple(trades),
         )
+
+    def _build_trade(
+        self,
+        position: PositionPlan,
+        entry_index: int,
+        exit_index: int,
+        exit_price: float,
+        reason: ExitReason,
+        candles_held: int,
+    ) -> BacktestTrade:
+        entry_price = float(position.entry)
+        exit_price = float(exit_price)
+        position_size = float(position.position_size)
+
+        if position.direction == SignalDirection.LONG:
+            gross_pnl = (exit_price - entry_price) * position_size
+            entry_execution = self._apply_slippage(entry_price, is_buy=True)
+            exit_execution = self._apply_slippage(exit_price, is_buy=False)
+        else:
+            gross_pnl = (entry_price - exit_price) * position_size
+            entry_execution = self._apply_slippage(entry_price, is_buy=False)
+            exit_execution = self._apply_slippage(exit_price, is_buy=True)
+
+        slippage_cost = abs(
+            (entry_execution - entry_price) * position_size
+        ) + abs(
+            (exit_execution - exit_price) * position_size
+        )
+
+        execution_pnl = gross_pnl - slippage_cost
+        fees = (
+            entry_execution * position_size * self.fee_rate
+            + exit_execution * position_size * self.fee_rate
+        )
+        net_pnl = execution_pnl - fees
+
+        return BacktestTrade(
+            entry_index=entry_index,
+            exit_index=exit_index,
+            direction=position.direction,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            position_size=position_size,
+            pnl=net_pnl,
+            risk_amount=position.risk_amount,
+            reason=reason,
+            candles_held=candles_held,
+            gross_pnl=gross_pnl,
+            fees=fees,
+            slippage_cost=slippage_cost,
+        )
+
+    def _apply_slippage(self, price: float, is_buy: bool) -> float:
+        multiplier = self.slippage_bps / 10_000.0
+        if is_buy:
+            return price * (1.0 + multiplier)
+        return price * (1.0 - multiplier)
 
     @staticmethod
     def _empty_result(initial_balance: float) -> BacktestResult:
