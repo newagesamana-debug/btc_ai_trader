@@ -11,19 +11,11 @@ class RiskManager:
         config = config if config is not None else load_risk_config()
         risk = config.get("risk", {})
 
-        self.base_risk_percent = float(risk.get("base_risk_per_trade", 0.005)) * 100.0
-        self.max_risk_percent = float(risk.get("max_risk_per_trade", 0.0075)) * 100.0
         self.min_leverage = float(risk.get("min_leverage", 1.0))
         self.max_leverage = float(
             risk.get("max_leverage", self.DEFAULT_MAX_LEVERAGE)
         )
 
-        if self.base_risk_percent <= 0:
-            raise ValueError("base_risk_per_trade must be positive")
-        if self.max_risk_percent <= 0:
-            raise ValueError("max_risk_per_trade must be positive")
-        if self.max_risk_percent < self.base_risk_percent:
-            raise ValueError("max_risk_per_trade must be >= base_risk_per_trade")
         if self.min_leverage <= 0:
             raise ValueError("min_leverage must be positive")
         if self.max_leverage < self.min_leverage:
@@ -36,19 +28,22 @@ class RiskManager:
         risk_percent: float | None = None,
         leverage: float | None = None,
     ) -> PositionPlan:
-        if not signal.valid or signal.entry is None or signal.stop_loss is None or signal.take_profit is None:
+        if not signal.valid:
+            return self._invalid_plan(account_balance)
+
+        if signal.entry is None or signal.stop_loss is None or signal.take_profit is None:
             return self._invalid_plan(account_balance)
 
         if account_balance <= 0:
             return self._invalid_plan(account_balance)
 
         if risk_percent is None:
-            risk_percent = self.base_risk_percent
+            risk_percent = self.DEFAULT_RISK_PERCENT
 
         if leverage is None:
             leverage = self.min_leverage
 
-        if risk_percent <= 0 or risk_percent > self.max_risk_percent:
+        if risk_percent <= 0:
             return self._invalid_plan(account_balance)
 
         if leverage < self.min_leverage or leverage > self.max_leverage:
