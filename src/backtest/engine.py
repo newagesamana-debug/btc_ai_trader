@@ -46,8 +46,7 @@ class BacktestEngine:
             raise ValueError(f"Missing required columns: {sorted(missing)}")
 
         balance = initial_balance
-        peak_balance = initial_balance
-        max_drawdown_pct = 0.0
+        equity_curve = [initial_balance]
 
         position: PositionPlan | None = None
         entry_index: int | None = None
@@ -85,13 +84,11 @@ class BacktestEngine:
                     )
                     balance += trade.pnl
                     trades.append(trade)
+                    equity_curve.append(balance)
+
                     position = None
                     entry_index = None
                     candles_held = 0
-
-                    peak_balance = max(peak_balance, balance)
-                    drawdown_pct = (peak_balance - balance) / peak_balance * 100.0
-                    max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
 
                 continue
 
@@ -126,10 +123,9 @@ class BacktestEngine:
             )
             balance += trade.pnl
             trades.append(trade)
+            equity_curve.append(balance)
 
-            peak_balance = max(peak_balance, balance)
-            drawdown_pct = (peak_balance - balance) / peak_balance * 100.0
-            max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
+        max_drawdown_pct = self._calculate_max_drawdown(equity_curve)
 
         winning_trades = sum(1 for trade in trades if trade.pnl > 0)
         losing_trades = sum(1 for trade in trades if trade.pnl < 0)
@@ -147,6 +143,7 @@ class BacktestEngine:
             losing_trades=losing_trades,
             win_rate_pct=win_rate_pct,
             trades=tuple(trades),
+            equity_curve=tuple(equity_curve),
         )
 
     def _build_trade(
@@ -177,10 +174,6 @@ class BacktestEngine:
         )
 
         execution_pnl = gross_pnl - slippage_cost
-
-        # Trading fees are charged on the notional value of the quoted
-        # entry/exit prices. Slippage is modeled separately as an execution
-        # cost and must not also change the fee base.
         fees = (
             entry_price * position_size * self.fee_rate
             + exit_price * position_size * self.fee_rate
@@ -210,6 +203,20 @@ class BacktestEngine:
         return price * (1.0 - multiplier)
 
     @staticmethod
+    def _calculate_max_drawdown(equity_curve: list[float]) -> float:
+        peak = equity_curve[0]
+        max_drawdown = 0.0
+
+        for equity in equity_curve[1:]:
+            peak = max(peak, equity)
+            if peak <= 0:
+                continue
+            drawdown = (peak - equity) / peak * 100.0
+            max_drawdown = max(max_drawdown, drawdown)
+
+        return max_drawdown
+
+    @staticmethod
     def _empty_result(initial_balance: float) -> BacktestResult:
         return BacktestResult(
             initial_balance=initial_balance,
@@ -222,4 +229,5 @@ class BacktestEngine:
             losing_trades=0,
             win_rate_pct=0.0,
             trades=(),
+            equity_curve=(initial_balance,),
         )
