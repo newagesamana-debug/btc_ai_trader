@@ -35,10 +35,8 @@ class BacktestEngine:
     ) -> BacktestResult:
         if initial_balance <= 0:
             raise ValueError("initial_balance must be positive")
-
         if max_candles <= 0:
             raise ValueError("max_candles must be positive")
-
         if data.empty:
             return self._empty_result(initial_balance)
 
@@ -59,7 +57,6 @@ class BacktestEngine:
         for index, row in data.reset_index(drop=True).iterrows():
             if position is not None:
                 candles_held += 1
-
                 pipeline_result = self.strategy_engine.evaluate(
                     row=row,
                     account_balance=balance,
@@ -88,15 +85,12 @@ class BacktestEngine:
                     )
                     balance += trade.pnl
                     trades.append(trade)
-
                     position = None
                     entry_index = None
                     candles_held = 0
 
                     peak_balance = max(peak_balance, balance)
-                    drawdown_pct = (
-                        (peak_balance - balance) / peak_balance * 100.0
-                    )
+                    drawdown_pct = (peak_balance - balance) / peak_balance * 100.0
                     max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
 
                 continue
@@ -107,7 +101,6 @@ class BacktestEngine:
                 risk_percent=risk_percent,
                 leverage=leverage,
             )
-
             signal = pipeline_result.signal
             if not signal.valid:
                 continue
@@ -123,7 +116,6 @@ class BacktestEngine:
         if position is not None and entry_index is not None:
             last_index = len(data) - 1
             last_close = float(data.iloc[-1]["close"])
-
             trade = self._build_trade(
                 position=position,
                 entry_index=entry_index,
@@ -136,20 +128,13 @@ class BacktestEngine:
             trades.append(trade)
 
             peak_balance = max(peak_balance, balance)
-            drawdown_pct = (
-                (peak_balance - balance) / peak_balance * 100.0
-            )
+            drawdown_pct = (peak_balance - balance) / peak_balance * 100.0
             max_drawdown_pct = max(max_drawdown_pct, drawdown_pct)
 
         winning_trades = sum(1 for trade in trades if trade.pnl > 0)
         losing_trades = sum(1 for trade in trades if trade.pnl < 0)
         total_trades = len(trades)
-
-        win_rate_pct = (
-            winning_trades / total_trades * 100.0
-            if total_trades
-            else 0.0
-        )
+        win_rate_pct = winning_trades / total_trades * 100.0 if total_trades else 0.0
 
         return BacktestResult(
             initial_balance=initial_balance,
@@ -186,16 +171,19 @@ class BacktestEngine:
             entry_execution = self._apply_slippage(entry_price, is_buy=False)
             exit_execution = self._apply_slippage(exit_price, is_buy=True)
 
-        slippage_cost = abs(
-            (entry_execution - entry_price) * position_size
-        ) + abs(
-            (exit_execution - exit_price) * position_size
+        slippage_cost = (
+            abs((entry_execution - entry_price) * position_size)
+            + abs((exit_execution - exit_price) * position_size)
         )
 
         execution_pnl = gross_pnl - slippage_cost
+
+        # Trading fees are charged on the notional value of the quoted
+        # entry/exit prices. Slippage is modeled separately as an execution
+        # cost and must not also change the fee base.
         fees = (
-            entry_execution * position_size * self.fee_rate
-            + exit_execution * position_size * self.fee_rate
+            entry_price * position_size * self.fee_rate
+            + exit_price * position_size * self.fee_rate
         )
         net_pnl = execution_pnl - fees
 
