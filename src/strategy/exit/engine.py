@@ -31,6 +31,7 @@ class ExitEngine:
                     ExitReason.STOP_LOSS,
                     position.stop_loss,
                     position.entry,
+                    position.direction,
                     candles_held,
                 )
 
@@ -39,6 +40,7 @@ class ExitEngine:
                     ExitReason.TAKE_PROFIT,
                     position.take_profit,
                     position.entry,
+                    position.direction,
                     candles_held,
                 )
 
@@ -48,6 +50,7 @@ class ExitEngine:
                     ExitReason.STOP_LOSS,
                     position.stop_loss,
                     position.entry,
+                    position.direction,
                     candles_held,
                 )
 
@@ -56,6 +59,7 @@ class ExitEngine:
                     ExitReason.TAKE_PROFIT,
                     position.take_profit,
                     position.entry,
+                    position.direction,
                     candles_held,
                 )
 
@@ -64,6 +68,7 @@ class ExitEngine:
                 ExitReason.TIME_STOP,
                 position.entry,
                 position.entry,
+                position.direction,
                 candles_held,
             )
 
@@ -81,6 +86,7 @@ class ExitEngine:
                     ExitReason.SIGNAL_EXIT,
                     position.entry,
                     position.entry,
+                    position.direction,
                     candles_held,
                 )
 
@@ -91,12 +97,17 @@ class ExitEngine:
         reason: ExitReason,
         exit_price: float,
         entry_price: float | None,
+        direction: SignalDirection,
         candles_held: int,
     ) -> ExitDecision:
         if entry_price is None:
             return ExitDecision(False, ExitReason.NONE, None, None, candles_held)
 
-        pnl_per_unit = exit_price - entry_price
+        if direction == SignalDirection.LONG:
+            pnl_per_unit = exit_price - entry_price
+        else:
+            pnl_per_unit = entry_price - exit_price
+
         return ExitDecision(
             should_exit=True,
             reason=reason,
