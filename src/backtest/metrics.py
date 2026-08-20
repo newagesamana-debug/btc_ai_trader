@@ -41,6 +41,45 @@ class BacktestMetrics:
     recovery_factor: float = 0.0
     sharpe_ratio: float = 0.0
     calmar_ratio: float = 0.0
+    max_drawdown_duration: int = 0
+    max_recovery_periods: int = 0
+
+
+def _drawdown_duration_metrics(equity_curve: tuple[float, ...]) -> tuple[int, int]:
+    """Return max underwater duration and max peak-to-recovery duration."""
+    if len(equity_curve) < 2:
+        return 0, 0
+
+    peak = equity_curve[0]
+    peak_index = 0
+    trough_index = 0
+    max_underwater_duration = 0
+    max_recovery_periods = 0
+
+    for index, equity in enumerate(equity_curve[1:], start=1):
+        if equity >= peak:
+            if trough_index > peak_index:
+                max_underwater_duration = max(
+                    max_underwater_duration,
+                    index - trough_index,
+                )
+                max_recovery_periods = max(
+                    max_recovery_periods,
+                    index - peak_index,
+                )
+            peak = equity
+            peak_index = index
+            trough_index = index
+        elif equity < peak and trough_index == peak_index:
+            trough_index = index
+
+    if trough_index > peak_index:
+        max_underwater_duration = max(
+            max_underwater_duration,
+            len(equity_curve) - 1 - trough_index,
+        )
+
+    return max_underwater_duration, max_recovery_periods
 
 
 def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
@@ -162,6 +201,8 @@ def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
         else 0.0
     )
 
+    max_drawdown_duration, max_recovery_periods = _drawdown_duration_metrics(curve)
+
     return BacktestMetrics(
         profit_factor=profit_factor,
         average_win=average_win,
@@ -192,4 +233,6 @@ def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
         recovery_factor=recovery_factor,
         sharpe_ratio=sharpe_ratio,
         calmar_ratio=calmar_ratio,
+        max_drawdown_duration=max_drawdown_duration,
+        max_recovery_periods=max_recovery_periods,
     )
