@@ -25,6 +25,7 @@ class BacktestMetrics:
     total_slippage: float = 0.0
     payoff_ratio: float = 0.0
     max_consecutive_wins: int = 0
+    total_trades: int = 0
     long_trades: int = 0
     short_trades: int = 0
     long_win_rate_pct: float = 0.0
@@ -218,6 +219,7 @@ def calculate_metrics(result: BacktestResult) -> BacktestMetrics:
         total_slippage=sum(trade.slippage_cost for trade in trades),
         payoff_ratio=payoff_ratio,
         max_consecutive_wins=max_consecutive_wins,
+        total_trades=total_trades,
         long_trades=len(long_trades),
         short_trades=len(short_trades),
         long_win_rate_pct=long_win_rate_pct,
